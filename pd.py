@@ -23,7 +23,7 @@ from pathlib import Path
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
 
-GEMINI_API_KEY = "AIzaSyBvMNK3kywbBXCxD_BvOsS6nIgLs6ErQoA"
+GEMINI_API_KEY = "Your-Gemini-APIkey-Here"
 
 WHISPER_MODEL = "small"           # small=fast, medium=better quality
 TTS_VOICE     = "en-US-GuyNeural" # Alternatives: en-US-JennyNeural, en-GB-RyanNeural
@@ -335,4 +335,5 @@ def main():
     print(" All done!")
 
 if __name__ == "__main__":
+
     main()
