@@ -11,7 +11,7 @@ from pathlib import Path
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 
-TRANSCRIPT_FILE = r"C:\Users\user\OneDrive\Desktop\velcra\lesson1_tmp\transcript_english.txt"
+TRANSCRIPT_FILE = r"Full-english-Transcript-path-here"
 # Example: r"C:\Users\user\OneDrive\Desktop\velcra\test1_tmp\transcript_english_test.txt"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -75,4 +75,5 @@ def main():
     print(f"  - Burn it into the video with ffmpeg")
 
 if __name__ == "__main__":
+
     main()
