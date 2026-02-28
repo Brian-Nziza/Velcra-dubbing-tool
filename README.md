@@ -1,4 +1,4 @@
-Velcra Dubber 
+Velcra Dubbing Tool
 
 Automatically dub foreign language videos to English using AI. Built for translating Polish educational videos but works with any language Whisper supports.
 Pipeline:
