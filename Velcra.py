@@ -1,5 +1,5 @@
 """
-Polish Video Auto-Dubber v3 - with Gemini translation
+Velcra - Polish Video Auto-Dubber v3 - with Gemini translation
 ======================================================
 Pipeline:
   1. Extract audio from video
@@ -9,26 +9,29 @@ Pipeline:
   5. ffmpeg merges everything back into the video
 
 INSTALL:
-    pip install openai-whisper edge-tts pydub torch google-genai
+    pip install -r requirements.txt
 
 Usage:
-    python polish_dubber.py myvideo.mp4
+    python velcra.py myvideo.mp4
     Output: myvideo_dubbed.mp4
 """
-
+import os
 import sys
 import asyncio
 import subprocess
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
 
-GEMINI_API_KEY = "Your-Gemini-APIkey-Here"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-WHISPER_MODEL = "small"           # small=fast, medium=better quality
-TTS_VOICE     = "en-US-GuyNeural" # Alternatives: en-US-JennyNeural, en-GB-RyanNeural
+WHISPER_MODEL = "small"            # small=fast, medium=better quality
+TTS_VOICE     = "en-GB-RyanNeural"   # Alternatives: en-US-JennyNeural, en-US-GuyNeural
 DUCK_ORIGINAL = True              # Keep quiet Polish audio in background
-DUCK_VOLUME   = 0.08              # 8% volume for original (0 = fully mute)
+DUCK_VOLUME   = 0.08                # 8% volume for original (0 = fully mute)
 
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -47,14 +50,14 @@ def get_video_duration(video_path: Path) -> float:
     return float(result.stdout.strip())
 
 def extract_audio(video_path: Path, out_wav: Path):
-    print("\n[1/6] Extracting audio from video...")
+    print("\n[1/5] Extracting audio from video...")
     run(["ffmpeg", "-y", "-i", str(video_path),
          "-ac", "1", "-ar", "16000", "-vn", str(out_wav)])
     print(f"      Done: {out_wav}")
 
 def transcribe_polish(wav_path: Path) -> list:
     """Transcribe Polish audio to Polish text with timestamps. No translation."""
-    print(f"\n[2/6] Transcribing Polish audio with Whisper ({WHISPER_MODEL})...")
+    print(f"\n[2/5] Transcribing Polish audio with Whisper ({WHISPER_MODEL})...")
     print("      Downloading model if first time (~460MB for small)...")
     import whisper
     model = whisper.load_model(WHISPER_MODEL)
@@ -86,10 +89,10 @@ def transcribe_polish(wav_path: Path) -> list:
 
 def translate_with_gemini(segments: list, tmp_dir: Path) -> list:
     """Send full Polish transcript to Gemini for natural English translation."""
-    print(f"\n[3/6] Translating with Gemini (full context, natural English)...")
+    print(f"\n[3/5] Translating with Gemini (full context, natural English)...")
 
-    if GEMINI_API_KEY == "PASTE YOUR GEMINI API KEY HERE":
-        print("ERROR: You need to set your Gemini API key in the script!")
+    if not GEMINI_API_KEY:
+        print("ERROR: GEMINI_API_KEY not set. Add it to your .env file.")
         sys.exit(1)
 
     from google import genai
@@ -157,7 +160,8 @@ Return ONLY the translated lines with their timestamps, nothing else."""
     print(f"      Parsed {len(translated_segments)} translated segments.")
     return translated_segments
 
-async def generate_all_tts(segments: list, tmp_dir: Path):
+async def _generate_all_tts(segments: list, tmp_dir: Path):
+    """Internal: generate one MP3 per segment in batches. Skips existing files."""
     import edge_tts
 
     async def make_one(i, text, out_path):
@@ -185,10 +189,10 @@ async def generate_all_tts(segments: list, tmp_dir: Path):
         print(f"      TTS progress: {done}/{len(segments)} segments")
 
 def generate_tts_audio(segments: list, tmp_dir: Path, video_duration: float) -> Path:
-    print(f"\n[4/6] Generating English TTS ({TTS_VOICE})...")
+    print(f"\n[4/5] Generating English TTS ({TTS_VOICE})...")
     print("      (Requires internet)")
 
-    asyncio.run(generate_all_tts(segments, tmp_dir))
+    asyncio.run(_generate_all_tts(segments, tmp_dir))
 
     print("      Assembling audio timeline...")
     from pydub import AudioSegment
@@ -230,7 +234,7 @@ def generate_tts_audio(segments: list, tmp_dir: Path, video_duration: float) -> 
 
 def merge_into_video(video_path: Path, dubbed_wav: Path, original_wav: Path,
                      video_duration: float, out_path: Path):
-    print("\n[5/6] Merging dubbed audio into video...")
+    print("\n[5/5] Merging dubbed audio into video...")
     duration_str = str(video_duration)
 
     if DUCK_ORIGINAL and DUCK_VOLUME > 0:
@@ -265,31 +269,22 @@ def merge_into_video(video_path: Path, dubbed_wav: Path, original_wav: Path,
             str(out_path)
         ])
 
-    print(f"\n[6/6] Done!")
-    print(f"      Output: {out_path}")
+    print(f"\n      Done! Output: {out_path}")
 
 def check_dependencies():
     missing = []
-    try:
-        import whisper
-    except ImportError:
-        missing.append("openai-whisper")
-    try:
-        import edge_tts
-    except ImportError:
-        missing.append("edge-tts")
-    try:
-        from pydub import AudioSegment
-    except ImportError:
-        missing.append("pydub")
-    try:
-        import torch
-    except ImportError:
-        missing.append("torch")
-    try:
-        from google import genai
-    except ImportError:
-        missing.append("google-genai")
+    for package, import_name in [
+        ("openai-whisper", "whisper"),
+        ("edge-tts",       "edge_tts"),
+        ("pydub",          "pydub"),
+        ("torch",          "torch"),
+        ("google-genai",   "google.genai"),
+        ("python-dotenv",  "dotenv"),
+    ]:
+        try:
+            __import__(import_name)
+        except ImportError:
+            missing.append(package)
 
     if missing:
         print("\nMissing packages. Run:")
@@ -298,7 +293,7 @@ def check_dependencies():
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python polish_dubber.py <input_video.mp4>")
+        print("Usage: python velcra.py <input_video.mp4>")
         sys.exit(1)
 
     video_path = Path(sys.argv[1])
@@ -313,7 +308,7 @@ def main():
     tmp_dir.mkdir(exist_ok=True)
 
     print("=" * 60)
-    print(" Polish to English Auto-Dubber v3 (Gemini translation)")
+    print(" Velcra - Polish to English Auto-Dubber v3")
     print("=" * 60)
     print(f" Input:  {video_path}")
     print(f" Output: {out_path}")
@@ -335,5 +330,4 @@ def main():
     print(" All done!")
 
 if __name__ == "__main__":
-
     main()
