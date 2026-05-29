@@ -1,7 +1,7 @@
-Velcra Dubbing Tool
+Velcra Dubbing Tool (Demo only version, not production)
 
-Automatically dub foreign language videos to English using AI. Built for translating Polish educational videos but works with any language Whisper supports.
-Pipeline:
+This tool allows you to dub foreign-language videos into English automatically using AI. Built for translating Polish educational videos, but works with any language Whisper supports.
+Core pipeline:
 
 Whisper extracts and transcribes the original audio
 Gemini translates the full transcript to natural English (with full context)
@@ -12,19 +12,19 @@ ffmpeg merges everything back into the video
 Requirements
 
 Python 3.10+
-ffmpeg installed and on PATH
+ffmpeg is installed and on the PATH
 A free Gemini API key from aistudio.google.com
 
 
 Install
-bashpip install openai-whisper edge-tts pydub torch google-genai
+bash pip install openai-whisper edge-tts pydub torch google-genai
 
 Usage
 1. Dub a video
-Open polish_dubber.py and set your Gemini API key at the top:
+Open dubber.py and set your Gemini API key at the top:
 pythonGEMINI_API_KEY = "your_key_here"
 Then run:
-python pd.py myvideo.mp4
+python Dubber.py myvideo.mp4
 Output: myvideo_dubbed.mp4
 
 3. Test Gemini translation on an existing transcript
