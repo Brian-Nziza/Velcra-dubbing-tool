@@ -37,14 +37,13 @@ python subt.py
 Set the path to your transcript_english_test.txt at the top. Outputs a .srt file you can load in VLC, upload to YouTube, or burn into the video.
 
 Config
-At the top of polish_dubber.py you can tweak:
+At the top of Velcra.py, you can tweak:
 SettingDefaultDescriptionWHISPER_MODELsmallsmall is fast, medium is more accurateTTS_VOICEen-US-GuyNeuralAny Microsoft Edge TTS voiceDUCK_ORIGINALTrueKeep original audio quietly in backgroundDUCK_VOLUME0.08Volume of original audio (0 = mute it)
 
 Files
 FileDescription
-pd.py  - Main dubbing pipeline
-test_gemini.py - Standalone Gemini translation tester
-subt.pyConvert transcript to .srt subtitles
+Velcra.py  - Main dubbing pipeline
+subtitles.py lets you convert a transcript to .srt subtitles
 
 Notes
 
@@ -52,5 +51,5 @@ First run downloads the Whisper model (~460MB for small, ~1.5GB for medium)
 Whisper transcription is the slowest step — expect 5-10 min per 10 min of video on CPU
 Gemini translation is nearly instant (one API call for the whole transcript)
 A _tmp folder is created alongside your video with transcripts and audio segments — safe to delete after you're happy with the output
-Gemini free tier is more than enough for this — you're making one API call per video
+Gemini's free tier is more than enough for this, since you're making one API call per video
 
