@@ -26,12 +26,13 @@ load_dotenv()
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEY    = os.getenv("GEMINI_API_KEY")
 
-WHISPER_MODEL = "small"            # small=fast, medium=better quality
-TTS_VOICE     = "en-GB-RyanNeural"   # Alternatives: en-US-JennyNeural, en-US-GuyNeural
-DUCK_ORIGINAL = True              # Keep quiet Polish audio in background
-DUCK_VOLUME   = 0.08                # 8% volume for original (0 = fully mute)
+WHISPER_MODEL     = "small"            # small=fast, medium=better quality
+TTS_VOICE         = "en-GB-RyanNeural"   # Alternatives: en-US-JennyNeural, en-US-GuyNeural
+DUCK_ORIGINAL     = True             
+DUCK_VOLUME       = 0.08               # 8% volume for original (0 = fully mute)
+GEMINI_CHUNK_SIZE = 100              # Segments per Gemini API call for longer videos
 
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -87,22 +88,11 @@ def transcribe_polish(wav_path: Path) -> list:
     print(f"      Polish transcript saved: {polish_transcript_path}")
     return segments
 
-def translate_with_gemini(segments: list, tmp_dir: Path) -> list:
-    """Send full Polish transcript to Gemini for natural English translation."""
-    print(f"\n[3/5] Translating with Gemini (full context, natural English)...")
-
-    if not GEMINI_API_KEY:
-        print("ERROR: GEMINI_API_KEY not set. Add it to your .env file.")
-        sys.exit(1)
-
-    from google import genai
-
-    client = genai.Client(api_key=GEMINI_API_KEY)
-
-    # Build the transcript with timestamps so Gemini can preserve them
+def _translate_chunk(client, chunk: list, chunk_num: int, total_chunks: int) -> list:
+    """Translate a single chunk of segments via Gemini. Internal helper."""
     transcript_text = "\n".join(
         f"[{s['start']:.2f}:{s['end']:.2f}] {s['text']}"
-        for s in segments
+        for s in chunk
     )
 
     prompt = f"""You are translating a Polish educational video transcript to English.
@@ -119,46 +109,70 @@ Transcript to translate:
 
 Return ONLY the translated lines with their timestamps, nothing else."""
 
-    print("      Sending transcript to Gemini...")
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=prompt
     )
 
-    translated_text = response.text.strip()
-
-    # Save English transcript
-    english_transcript_path = tmp_dir / "transcript_english.txt"
-    with open(english_transcript_path, "w", encoding="utf-8") as f:
-        f.write(translated_text)
-    print(f"      English transcript saved: {english_transcript_path}")
-
-    # Parse back into segments
     translated_segments = []
-    for line in translated_text.splitlines():
+    for line in response.text.strip().splitlines():
         line = line.strip()
         if not line:
             continue
         try:
-            # Parse [start:end] timestamp
             bracket_end = line.index("]")
-            timestamps = line[1:bracket_end].split(":")
+            timestamps  = line[1:bracket_end].split(":")
             start = float(timestamps[0])
             end   = float(timestamps[1])
             text  = line[bracket_end+1:].strip()
             if text:
                 translated_segments.append({"start": start, "end": end, "text": text})
         except (ValueError, IndexError):
-            # If a line doesn't parse cleanly, skip it
             print(f"      Skipping unparseable line: {line[:60]}")
             continue
 
-    if not translated_segments:
-        print("ERROR: Could not parse Gemini's response. Check transcript_english.txt")
+    return translated_segments
+
+def translate_with_gemini(segments: list, tmp_dir: Path) -> list:
+    """Translate full transcript in chunks to avoid Gemini output token limits."""
+    print(f"\n[3/5] Translating with Gemini (chunked, natural English)...")
+
+    if not GEMINI_API_KEY:
+        print("ERROR: GEMINI_API_KEY not set. Add it to your .env file.")
         sys.exit(1)
 
-    print(f"      Parsed {len(translated_segments)} translated segments.")
-    return translated_segments
+    from google import genai
+    client = genai.Client(api_key=GEMINI_API_KEY)
+
+    # Split into chunks to avoid hitting Gemini's output token limit
+    chunks = [
+        segments[i:i + GEMINI_CHUNK_SIZE]
+        for i in range(0, len(segments), GEMINI_CHUNK_SIZE)
+    ]
+    total_chunks = len(chunks)
+    print(f"      {len(segments)} segments → {total_chunks} chunks of ~{GEMINI_CHUNK_SIZE}")
+
+    all_translated = []
+    for i, chunk in enumerate(chunks):
+        print(f"      Translating chunk {i+1}/{total_chunks} ({len(chunk)} segments)...")
+        translated = _translate_chunk(client, chunk, i+1, total_chunks)
+        all_translated.extend(translated)
+        print(f"      Chunk {i+1} done. ({len(translated)} segments translated)")
+
+    if not all_translated:
+        print("ERROR: No segments were translated. Check your API key and transcript.")
+        sys.exit(1)
+
+    print(f"\n      Total translated: {len(all_translated)}/{len(segments)} segments")
+
+    # Save full English transcript
+    english_transcript_path = tmp_dir / "transcript_english.txt"
+    with open(english_transcript_path, "w", encoding="utf-8") as f:
+        for s in all_translated:
+            f.write(f"[{s['start']:.2f}:{s['end']:.2f}] {s['text']}\n")
+    print(f"      English transcript saved: {english_transcript_path}")
+
+    return all_translated
 
 async def _generate_all_tts(segments: list, tmp_dir: Path):
     """Internal: generate one MP3 per segment in batches. Skips existing files."""
