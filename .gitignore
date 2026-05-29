@@ -1,0 +1,18 @@
+# Environment variables — never commit your API key
+.env
+
+# Temporary dubbing output folders
+*_tmp/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Intermediate audio files
+*.wav
+*.mp3
+
+# OS files
+.DS_Store
+Thumbs.db
